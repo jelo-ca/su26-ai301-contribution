@@ -1,8 +1,9 @@
 # Contribution #1: Support for Additional SQL Databases (PostgreSQL)
 **Contribution Number:** 1
+**Dates:** 6/1 – 6/7
 **Student:** Anjoelo Calderon
 **Issue:** https://github.com/camel-ai/oasis/issues/214
-**Status:** Phase I Complete
+**Status:** Phase I Complete (Discontinued)
 
 ---
 
@@ -58,85 +59,172 @@ rewriting the ~100 existing query strings.
 
 ---
 
+## Outcome
+
+Discontinued after Phase I analysis. Maintainers never got back to me so I decided to find another project. 
+Findings documented and pivot made to Contribution #2.
+
+---
+
+---
+
+# Contribution #2: Add UI Tests to DCS Simulation Engine
+**Contribution Number:** 2
+**Dates:** 6/8 – present
+**Student:** Anjoelo Calderon
+**Issue:** https://github.com/diverse-cognitive-systems-group/dcs-simulation-engine/issues/141
+**Status:** In Progress — Analysis & Planning Complete, Infrastructure Pending
+
+---
+
+## Why I Chose This Issue
+
+The dcs-simulation-engine is a gameplay framework for interacting with diverse cognitive systems, developed at Georgia Tech. The React frontend has zero test coverage — the issue is explicitly labeled HIGH PRIORITY and good first issue. Adding a test suite is a meaningful, scoped contribution: it improves long-term maintainability without requiring deep domain knowledge of the simulation logic.
+
+This also fills a gap in my skills — I've done backend testing but haven't set up a frontend test harness from scratch on a real OSS project.
+
+---
+
+## Understanding the Issue
+
+### Problem Description
+The React UI (`ui/`) has no automated tests. A preliminary backlog of 23 test behaviors exists in `ui/tests/README.md` but no framework is installed and no test files exist.
+
+### Expected Behavior
+A working test suite runnable via `bun run test` that covers the behavioral items in `ui/tests/README.md` — primarily input submission gating, WebSocket state transitions, auth-mode routing, and session restoration.
+
+### Current Behavior
+`ui/tests/` contains only a README. No test runner, no config, no test files.
+
+### Affected Components
+- `ui/src/hooks/use-session-websocket.ts` — WebSocket state machine (core logic under test)
+- `ui/src/routes/play/$sessionId.tsx` — Submit-state logic, auth guard, terminal session handling
+- `ui/src/routes/run.tsx` — Run assignment status display
+- `ui/package.json` — needs `"test"` script added
+- New: `ui/vitest.config.ts`, `ui/tests/setup.ts`
+
+**Key finding:** Nearly all backlog items reduce to asserting derived boolean state (`canSubmitTurn`, `inputDisabled`, `isReplaying`, `waiting`) driven by WebSocket frame sequences. A fake `WebSocket` class + `renderHook` covers most cases without a real server.
+
+---
+
 ## Reproduction Process
 ### Environment Setup
-[Notes on setting up your local development environment - challenges you faced, how you solved them]
+- Dev container via `.devcontainer/` (VS Code)
+- `bun install` in `ui/`
+- API server not needed for component/hook tests — WebSocket is mocked
+
 ### Steps to Reproduce
-1. [Step 1]
-2. [Step 2]
-3. [Observed result]
+1. Clone the upstream repository: `git clone https://github.com/diverse-cognitive-systems-group/dcs-simulation-engine`
+2. Open the folder in VS Code and select **"Reopen in Container"** to launch the dev container.
+3. Inside the container, run `cd ui && bun run test`.
+4. Observe: `error: Missing script: "test"` — no test script is defined in `ui/package.json`.
+5. Check `ui/tests/` — the directory contains only `README.md`; there are no test files, no runner config, and no `vitest.config.ts`.
+
 ### Reproduction Evidence
-- **Commit showing reproduction:** [Link to commit in your fork]
-- **Screenshots/logs:** [If applicable]
-- **My findings:** [What you discovered during reproduction]
-  
+- **Branch in fork:** https://github.com/jelo-ca/dcs-simulation-engine_issue-141/tree/test/ui
+
 ---
 
 ## Solution Approach
 ### Analysis
-[Your analysis of the root cause - what's causing the issue?]
+The WebSocket hook (`use-session-websocket.ts`) is a pure state machine driven by incoming frames. It is self-contained and independently testable with `renderHook`. The play page derives all submit-state from that hook's output — so testing the hook covers most behaviors, and shallow component tests cover the rest.
+
 ### Proposed Solution
-[High-level description of your fix approach]
-### Implementation Plan
-Using UMPIRE framework (adapted):
-**Understand:** [Restate the problem]
-**Match:** [What similar patterns/solutions exist in the codebase?]
-**Plan:** [Step-by-step implementation plan]
-1. [Modify file X to do Y]
-2. [Add function Z]
-3. [Update tests]
-**Implement:** [Link to your branch/commits as you work]
-**Review:** [Self-review checklist - does it follow the project's contribution guidelines?]
-**Evaluate:** [How will you verify it works?]
+Vitest + React Testing Library + jsdom. Vitest is the idiomatic Vite choice (shares the build config, zero extra transform setup). The issue mentions Jest but the API is identical and no runner is installed yet.
+
+### Implementation Plan (UMPIRE)
+**Understand:** Add behavioral tests for the React UI matching the 23-item backlog.
+
+**Match:** Backend already uses pytest with functional + unit markers. UI will follow the same principle: functional tests over unit tests, behavior over implementation.
+
+**Plan:**
+- Install `vitest`, `@vitest/coverage-v8`, `jsdom`, `@testing-library/react`, `@testing-library/user-event`, and `@testing-library/jest-dom` as dev deps in `ui/`.
+- Add `ui/vitest.config.ts` (jsdom environment, path aliases mirroring `vite.config.ts`, `setupFiles` pointing to `tests/setup.ts`).
+- Add `ui/tests/setup.ts` to import jest-dom matchers and stub the global `WebSocket` class.
+- Add `"test": "vitest run"` and `"test:watch": "vitest"` to `ui/package.json`.
+- Write hook-level tests for `use-session-websocket.ts` using `renderHook` + a `MockWebSocket` that lets us inject server frames directly — covers all WS state transitions, `waiting` lifecycle, `isReplaying`, and `exited` flag.
+- Write component-level tests for `PlayPage` mounting with mocked TanStack Router/Query contexts — covers submit-state (`canSubmitTurn`, `sendDisabled`, `inputDisabled`), Enter-key gating, replay blocking, and terminal session read-only mode.
+- Write `beforeLoad` auth-mode tests mocking `getServerConfig` to assert `requireAuth` vs. `ensureAnonymousAuth` call paths.
+- Wire `cd ui && bun run test` into the `ci` Makefile target (or a new `test-ui` target).
+
+**Implement:** https://github.com/jelo-ca/dcs-simulation-engine_issue-141/tree/test/ui
+
+**Review:** Biome lint passes, no orval-generated files touched, bun used throughout.
+
+**Evaluate:** `bun run test` passes all cases; behaviors from README checked off.
 
 ---
 
 ## Testing Strategy
-### Unit Tests
-- [ ] Test case 1: [Description]
-- [ ] Test case 2: [Description]
-- [ ] Test case 3: [Description]
-### Integration Tests
-- [ ] Integration scenario 1
-- [ ] Integration scenario 2
-### Manual Testing
-[What you tested manually and results]
+### Hook Tests (`use-session-websocket`)
+- [ ] `wsState` transitions: connecting → auth → ready → closed
+- [ ] `waiting` set on `sendTurn`, cleared on `turn_end` / `event` / `error`
+- [ ] `isReplaying` true after `replay_start`, false after `replay_end`
+- [ ] `exited` set when `turn_end` has `exited: true`
+- [ ] `error` frame + `failure_type` → `wsState === 'closed'`, `exited === true`
+- [ ] `error` frame without `failure_type` → `wsState === 'error'`
+- [ ] `enabled: false` → socket never opened
+
+### Component Tests (`PlayPage` submit-state)
+- [ ] Can draft text while game loading (textarea enabled during `connecting`)
+- [ ] Send button disabled until `wsState === 'ready'` + `turns > 0` + not replaying
+- [ ] Enter key blocked until game ready
+- [ ] Slash command autocomplete: Enter autocompletes before submit enabled, but not before game loaded
+- [ ] Submit disabled while `waiting === true`
+- [ ] Resumed sessions: submit disabled during replay, re-enabled after `replay_end`
+- [ ] Terminal session → read-only transcript, input disabled, no WS connect
+
+### Auth-Mode Tests
+- [ ] Anon mode: `ensureAnonymousAuth()` called before WS connects
+- [ ] Registration-required mode: `requireAuth()` redirects to `/login`
+
+### Deferred
+- Back/Fwd button behavior (no spec in backlog)
+- Second-tab session detection (no client implementation found)
 
 ---
 
 ## Implementation Notes
-### Week [X] Progress
-[What you built this week, challenges faced, decisions made]
-### Week [Y] Progress
-[Continue documenting as you work]
+
+### Week of 6/8 – 6/14 (Analysis & Planning)
+- Read issue #141: no UI tests exist; backlog in `ui/tests/README.md` (23 items, 3 incomplete)
+- Analyzed `use-session-websocket.ts` — WS state machine fully understood; state transitions, `waiting` lifecycle, and `isReplaying` logic documented
+- Analyzed `play/$sessionId.tsx` — submit-state logic mapped to derived booleans (`canSubmitTurn`, `sendDisabled`, `inputDisabled`, `gameReady`)
+- Analyzed auth guard in `beforeLoad` — mockable via `getServerConfig` / `ensureAnonymousAuth`
+- Chose Vitest over Jest (Vite-native, identical API, zero extra transform config)
+- Deferred: Back/Fwd (no spec), second-tab (no client implementation visible)
+- Created and committed planning docs: `task_plan.md`, `findings.md`, `progress.md`
+- Committed: `9c81c92 Add findings and progress documentation for UI tests (#141)`
+
+### Week of 6/15 (Codebase Familiarization)
+- Deep-read backend architecture: session lifecycle, WebSocket protocol, DAL, game structure, MongoDB collections
+- Revised `CLAUDE.md` to add missing make targets (`make pr`, `make ci`, `make lint-fix`, `make test-live`), missing packages (`helpers/`, `hitl/`, `reporting/`, `autoplay/`, `games/`, `experiments/`, `database_seeds/`), game four-part structure, and MongoDB collections reference
+- Working branch: `fix/devcontainer-zshrc-line-endings` (line-ending normalization for dev container files)
+
 ### Code Changes
-- **Files modified:** [List]
-- **Key commits:** [Links to important commits]
-- **Approach decisions:** [Why you chose certain approaches]
-  
+- **Files created:** `task_plan.md`, `findings.md`, `progress.md` (committed)
+- **Files modified:** `CLAUDE.md` (improved architecture documentation)
+- **Key commits:** `9c81c92` — planning and findings docs
+- **Next:** Phase 1 infrastructure (install deps, `vitest.config.ts`, `tests/setup.ts`, `package.json` script)
+
 ---
 
 ## Pull Request
-**PR Link:** [GitHub PR URL when submitted]
-**PR Description:** [Draft or final PR description - much of the content above can be adapted]
-**Maintainer Feedback:**
-- [Date]: [Summary of feedback received]
-- [Date]: [How you addressed it]
-**Status:** [Awaiting review / Iterating / Approved / Merged]
-  
+**PR Link:** TBD
+**PR Description:** TBD
+**Maintainer Feedback:** TBD
+**Status:** In Progress — pending Phase 1
+
 ---
 
 ## Learnings & Reflections
-### Technical Skills Gained
-[What you learned technically]
-### Challenges Overcome
-[What was hard and how you solved it]
-### What I'd Do Differently Next Time
-[Reflection on your process]
+[To be filled in after PR is submitted]
 
 ---
 
 ## Resources Used
-- OASIS issue #214: https://github.com/camel-ai/oasis/issues/214
-- OASIS repository: https://github.com/camel-ai/oasis
-- OASIS documentation: https://docs.oasis.camel-ai.org/
+- Issue #141: https://github.com/diverse-cognitive-systems-group/dcs-simulation-engine/issues/141
+- Repository: https://github.com/diverse-cognitive-systems-group/dcs-simulation-engine
+- UI test backlog: `ui/tests/README.md`
+- Vitest docs: https://vitest.dev
+- React Testing Library: https://testing-library.com/docs/react-testing-library/intro
