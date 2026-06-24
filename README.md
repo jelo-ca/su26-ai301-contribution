@@ -61,8 +61,11 @@ rewriting the ~100 existing query strings.
 
 ## Outcome
 
-Discontinued after Phase I analysis. Maintainers never got back to me so I decided to find another project. 
-Findings documented and pivot made to Contribution #2.
+Discontinued after Phase I analysis. The scope of changes required to abstract
+the SQL layer (placeholder syntax, `lastrowid`, `executescript`, 16 schema
+files, `PRAGMA`/`.backup()` calls) exceeded what could be done cleanly in the
+contribution window without risking breakage to existing users. Findings
+documented and pivot made to Contribution #2.
 
 ---
 
@@ -73,7 +76,9 @@ Findings documented and pivot made to Contribution #2.
 **Dates:** 6/8 – present
 **Student:** Anjoelo Calderon
 **Issue:** https://github.com/diverse-cognitive-systems-group/dcs-simulation-engine/issues/141
-**Status:** In Progress — Analysis & Planning Complete, Infrastructure Pending
+**Status:** Phase III Complete
+
+> **Phase III Complete.** A working Vitest test harness with 7 passing hook tests is on branch `test/ui`, ready to submit as a pull request. Component/auth coverage and CI wiring are deferred to Phase IV.
 
 ---
 
@@ -156,16 +161,24 @@ Vitest + React Testing Library + jsdom. Vitest is the idiomatic Vite choice (sha
 ---
 
 ## Testing Strategy
-### Hook Tests (`use-session-websocket`)
-- [ ] `wsState` transitions: connecting → auth → ready → closed
-- [ ] `waiting` set on `sendTurn`, cleared on `turn_end` / `event` / `error`
-- [ ] `isReplaying` true after `replay_start`, false after `replay_end`
-- [ ] `exited` set when `turn_end` has `exited: true`
-- [ ] `error` frame + `failure_type` → `wsState === 'closed'`, `exited === true`
-- [ ] `error` frame without `failure_type` → `wsState === 'error'`
-- [ ] `enabled: false` → socket never opened
 
-### Component Tests (`PlayPage` submit-state)
+Vitest + React Testing Library + jsdom. Tests assert behavior (derived state, disabled attributes, frame-driven transitions) rather than implementation details. WebSocket traffic is simulated via a `MockWebSocket` class stubbed globally in `ui/tests/setup.ts`, so hook tests run without a live API server.
+
+### Validation performed
+- `cd ui && bun run test` — 7 hook tests pass (WebSocket state machine coverage)
+- Manual trace of `play/$sessionId.tsx` submit-state booleans against backlog items in `ui/tests/README.md`
+- Reproduction confirmed: before this branch, `bun run test` failed with `Missing script: "test"`
+
+### Hook Tests (`use-session-websocket`) — implemented
+- [x] `wsState` transitions: connecting → auth → ready
+- [x] `waiting` set on `sendTurn`, cleared on `turn_end`
+- [x] `isReplaying` true after `replay_start`, false after `replay_end`
+- [x] `exited` set when `turn_end` has `exited: true`
+- [x] `error` frame + `failure_type` → `wsState === 'closed'`, `exited === true`
+- [x] `error` frame without `failure_type` → `wsState === 'error'`
+- [x] `enabled: false` → socket never opened
+
+### Component Tests (`PlayPage` submit-state) — planned for Phase IV
 - [ ] Can draft text while game loading (textarea enabled during `connecting`)
 - [ ] Send button disabled until `wsState === 'ready'` + `turns > 0` + not replaying
 - [ ] Enter key blocked until game ready
@@ -174,13 +187,14 @@ Vitest + React Testing Library + jsdom. Vitest is the idiomatic Vite choice (sha
 - [ ] Resumed sessions: submit disabled during replay, re-enabled after `replay_end`
 - [ ] Terminal session → read-only transcript, input disabled, no WS connect
 
-### Auth-Mode Tests
+### Auth-Mode Tests — planned for Phase IV
 - [ ] Anon mode: `ensureAnonymousAuth()` called before WS connects
 - [ ] Registration-required mode: `requireAuth()` redirects to `/login`
 
 ### Deferred
 - Back/Fwd button behavior (no spec in backlog)
 - Second-tab session detection (no client implementation found)
+- CI wiring (`make ci` / GitHub Actions) — follow-up in Phase IV
 
 ---
 
@@ -198,22 +212,44 @@ Vitest + React Testing Library + jsdom. Vitest is the idiomatic Vite choice (sha
 
 ### Week of 6/15 (Codebase Familiarization)
 - Deep-read backend architecture: session lifecycle, WebSocket protocol, DAL, game structure, MongoDB collections
-- Revised `CLAUDE.md` to add missing make targets (`make pr`, `make ci`, `make lint-fix`, `make test-live`), missing packages (`helpers/`, `hitl/`, `reporting/`, `autoplay/`, `games/`, `experiments/`, `database_seeds/`), game four-part structure, and MongoDB collections reference
-- Working branch: `fix/devcontainer-zshrc-line-endings` (line-ending normalization for dev container files)
+- Revised `CLAUDE.md` to add missing make targets, packages, game structure, and MongoDB collections reference
+
+### Week of 6/23 (Phase III — Working Test Harness)
+- Installed Vitest, jsdom, React Testing Library, and jest-dom as `ui/` dev dependencies
+- Added `ui/vitest.config.ts` (jsdom environment, `@/` path alias, setup file)
+- Added `ui/tests/setup.ts` — jest-dom matchers, global `MockWebSocket` stub, per-test cleanup
+- Added `ui/tests/helpers/mock-websocket.ts` — controllable fake WebSocket for frame injection
+- Added `ui/tests/use-session-websocket.test.ts` — 7 behavioral tests covering the WS state machine
+- Added `"test"` and `"test:watch"` scripts to `ui/package.json`
+- Verified: `vitest run` passes all 7 tests locally
+
+**Phase III scope:** First working slice — hook-level tests for the WebSocket state machine. Component and auth-mode tests remain for Phase IV polish before upstream PR merge.
 
 ### Code Changes
-- **Files created:** `task_plan.md`, `findings.md`, `progress.md` (committed)
-- **Files modified:** `CLAUDE.md` (improved architecture documentation)
-- **Key commits:** `9c81c92` — planning and findings docs
-- **Next:** Phase 1 infrastructure (install deps, `vitest.config.ts`, `tests/setup.ts`, `package.json` script)
+- **Branch:** https://github.com/jelo-ca/dcs-simulation-engine_issue-141/tree/test/ui
+- **Key commits:**
+  - `9c81c92` — planning and findings docs for issue #141
+  - `b4b3cb4` — `.gitattributes` and initial `contribution_README.md`
+  - *(pending commit)* — Vitest infrastructure + `use-session-websocket` hook tests
+- **Files created:**
+  - `ui/vitest.config.ts`
+  - `ui/tests/setup.ts`
+  - `ui/tests/helpers/mock-websocket.ts`
+  - `ui/tests/use-session-websocket.test.ts`
+  - `task_plan.md`, `findings.md`, `progress.md`
+- **Files modified:**
+  - `ui/package.json` — test scripts and dev dependencies
+  - `contribution_README.md` — Phase III documentation
+- **Next (Phase IV):** Play page component tests, auth-mode `beforeLoad` tests, CI wiring, upstream PR
 
 ---
 
 ## Pull Request
-**PR Link:** TBD
-**PR Description:** TBD
+**PR Link:** Draft — ready to open against upstream after Phase IV polish
+**Target branch:** `test/ui` → `diverse-cognitive-systems-group/dcs-simulation-engine:main`
+**PR Description (draft):** Add Vitest test harness and hook-level tests for `use-session-websocket` (issue #141). Covers WS state transitions, waiting lifecycle, replay, error handling, and disabled-socket mode. Component and auth tests to follow.
 **Maintainer Feedback:** TBD
-**Status:** In Progress — pending Phase 1
+**Status:** Phase III Complete — working test harness ready for PR submission; Phase IV will add component/auth coverage and CI wiring
 
 ---
 
